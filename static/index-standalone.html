@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM SEO Analyzer</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --surface-2: #242837;
+  --border: #2e3345; --text: #e4e6ed; --text-muted: #8b8fa3;
+  --accent: #6366f1; --accent-light: #818cf8;
+  --green: #22c55e; --yellow: #eab308; --red: #ef4444;
+  --orange: #f97316; --radius: 12px;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh; display: flex; flex-direction: column;
+}
+header { text-align: center; padding: 3rem 1rem 1.5rem; }
+header h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; }
+.subtitle { color: var(--text-muted); margin-top: 0.4rem; font-size: 1.05rem; }
+.input-section { max-width: 640px; margin: 0 auto 2rem; padding: 0 1rem; }
+.input-row { display: flex; gap: 0.5rem; }
+#url-input {
+  flex: 1; padding: 0.85rem 1rem; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); font-size: 1rem; outline: none; transition: border-color 0.2s;
+}
+#url-input:focus { border-color: var(--accent); }
+#submit-btn {
+  padding: 0.85rem 1.6rem; border-radius: var(--radius); border: none;
+  background: var(--accent); color: #fff; font-size: 1rem; font-weight: 600;
+  cursor: pointer; transition: background 0.2s; white-space: nowrap;
+}
+#submit-btn:hover { background: var(--accent-light); }
+#submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.loading { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
+.spinner {
+  width: 40px; height: 40px; border: 3px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  margin: 0 auto 1rem; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.error-box {
+  max-width: 640px; margin: 0 auto 2rem; padding: 1rem 1.2rem;
+  background: rgba(239,68,68,0.1); border: 1px solid var(--red);
+  border-radius: var(--radius); color: var(--red); text-align: center;
+}
+.score-card {
+  display: flex; align-items: center; justify-content: center;
+  gap: 2rem; padding: 2rem 1rem; max-width: 640px; margin: 0 auto;
+}
+.score-circle {
+  width: 120px; height: 120px; border-radius: 50%; border: 4px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: border-color 0.4s;
+}
+.score-number { font-size: 2.4rem; font-weight: 800; line-height: 1; }
+.score-max { font-size: 0.9rem; color: var(--text-muted); }
+.score-info { display: flex; flex-direction: column; gap: 0.5rem; }
+.grade-badge {
+  display: inline-block; padding: 0.35rem 1.2rem; border-radius: 999px;
+  font-weight: 700; font-size: 1.1rem; color: #fff; width: fit-content;
+}
+.analyzed-url { color: var(--text-muted); font-size: 0.9rem; word-break: break-all; }
+.checks-list {
+  max-width: 720px; margin: 0 auto 3rem; padding: 0 1rem;
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+.check-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; transition: border-color 0.2s;
+}
+.check-card:hover { border-color: var(--accent); }
+.check-header {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 1rem 1.2rem; cursor: pointer; user-select: none;
+}
+.check-status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.check-status-dot.pass { background: var(--green); }
+.check-status-dot.partial { background: var(--yellow); }
+.check-status-dot.fail { background: var(--red); }
+.check-name { flex: 1; font-weight: 600; font-size: 0.95rem; }
+.check-score { font-weight: 700; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.check-chevron { color: var(--text-muted); transition: transform 0.2s; font-size: 0.8rem; }
+.check-card.open .check-chevron { transform: rotate(90deg); }
+.check-body {
+  display: none; padding: 0 1.2rem 1.2rem; border-top: 1px solid var(--border);
+}
+.check-card.open .check-body { display: block; padding-top: 1rem; }
+.check-body h4 {
+  font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted); margin: 0.8rem 0 0.4rem;
+}
+.check-body h4:first-child { margin-top: 0; }
+.check-body ul { list-style: none; padding: 0; }
+.check-body li { padding: 0.3rem 0; font-size: 0.9rem; line-height: 1.5; color: var(--text); }
+.check-body li::before { margin-right: 0.5rem; }
+.findings-list li::before { content: "→"; color: var(--accent-light); }
+.actions-list li::before { content: "✦"; color: var(--yellow); }
+footer {
+  margin-top: auto; text-align: center; padding: 1.5rem 1rem;
+  color: var(--text-muted); font-size: 0.85rem; border-top: 1px solid var(--border);
+}
+.hidden { display: none !important; }
+.mode-tabs {
+  display: flex; gap: 0; margin-bottom: 1rem; border-radius: var(--radius);
+  overflow: hidden; border: 1px solid var(--border);
+}
+.mode-tab {
+  flex: 1; padding: 0.7rem 1rem; border: none; background: var(--surface);
+  color: var(--text-muted); font-size: 0.9rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s;
+}
+.mode-tab.active { background: var(--accent); color: #fff; }
+.mode-tab:not(.active):hover { background: var(--surface-2); }
+#html-input {
+  width: 100%; min-height: 120px; padding: 0.85rem 1rem; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font-size: 0.9rem; font-family: monospace; resize: vertical; outline: none;
+  transition: border-color 0.2s; margin-bottom: 0.5rem;
+}
+#html-input:focus { border-color: var(--accent); }
+.paste-extras {
+  display: flex; gap: 0.5rem;
+}
+.paste-extras input {
+  flex: 1; padding: 0.7rem 1rem; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); font-size: 0.9rem; outline: none;
+}
+.paste-extras input:focus { border-color: var(--accent); }
+.paste-extras button {
+  padding: 0.7rem 1.4rem; border-radius: var(--radius); border: none;
+  background: var(--accent); color: #fff; font-size: 0.9rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.paste-extras button:hover { background: var(--accent-light); }
+.paste-hint {
+  margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-muted);
+}
+.proxy-note {
+  margin-top: 0.75rem; font-size: 0.78rem; color: var(--text-muted); text-align: center;
+}
+.proxy-note a { color: var(--accent-light); text-decoration: none; }
+.proxy-note a:hover { text-decoration: underline; }
+@media (max-width: 500px) {
+  .input-row { flex-direction: column; }
+  .score-card { flex-direction: column; text-align: center; }
+  .score-info { align-items: center; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔍 LLM SEO Analyzer</h1>
+  <p class="subtitle">Check if your website is ready for AI agents &amp; LLMs</p>
+</header>
+<main>
+  <section class="input-section">
+    <div class="mode-tabs">
+      <button class="mode-tab active" data-mode="url">Analyze URL</button>
+      <button class="mode-tab" data-mode="paste">Paste HTML</button>
+    </div>
+    <form id="analyze-form">
+      <div class="input-row" id="url-mode">
+        <input type="text" id="url-input" placeholder="Enter a URL — e.g. https://example.com" autocomplete="url" />
+        <button type="submit" id="submit-btn">Analyze</button>
+      </div>
+      <div id="paste-mode" class="hidden">
+        <textarea id="html-input" placeholder="Paste the page's HTML source here (right-click → View Page Source, then Ctrl+A, Ctrl+C)"></textarea>
+        <div class="paste-extras">
+          <input type="text" id="paste-url" placeholder="Page URL (optional, for context)" />
+          <button type="submit" id="paste-btn">Analyze HTML</button>
+        </div>
+        <p class="paste-hint">Tip: This mode needs no proxy — analysis runs entirely in your browser.</p>
+      </div>
+    </form>
+    <p class="proxy-note" id="proxy-note">URL mode uses a public CORS proxy (<a href="https://allorigins.win" target="_blank">allorigins.win</a>). For full control, use Paste HTML mode or <a href="https://github.com" target="_blank">deploy your own proxy</a>.</p>
+  </section>
+  <section id="loading" class="loading hidden">
+    <div class="spinner"></div>
+    <p>Fetching and analyzing…</p>
+  </section>
+  <section id="error" class="error-box hidden"></section>
+  <section id="report" class="hidden">
+    <div class="score-card">
+      <div class="score-circle" id="score-circle">
+        <span class="score-number" id="score-number">0</span>
+        <span class="score-max">/100</span>
+      </div>
+      <div class="score-info">
+        <span class="grade-badge" id="grade-badge">—</span>
+        <p class="analyzed-url" id="analyzed-url"></p>
+      </div>
+    </div>
+    <div class="checks-list" id="checks-list"></div>
+  </section>
+</main>
+<footer>
+  <p>LLM SEO Analyzer — frontend-only, no server needed</p>
+</footer>
+
+<script>
+// ── CORS Proxy ───────────────────────────────────────────────────
+const PROXY = "https://api.allorigins.win/raw?url=";
+
+async function proxyFetch(url) {
+  const res = await fetch(PROXY + encodeURIComponent(url));
+  if (!res.ok) return { ok: false, text: "" };
+  return { ok: true, text: await res.text() };
+}
+
+// ── Fetcher ──────────────────────────────────────────────────────
+async function fetchAll(url) {
+  if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+  const parsed = new URL(url);
+  const base = parsed.origin;
+
+  const [page, robots, sitemap, llmsTxt] = await Promise.all([
+    proxyFetch(url),
+    proxyFetch(base + "/robots.txt"),
+    proxyFetch(base + "/sitemap.xml"),
+    proxyFetch(base + "/llms.txt"),
+  ]);
+
+  return { url, page, robots, sitemap, llms_txt: llmsTxt };
+}
+
+// ── Helpers ──────────────────────────────────────────────────────
+function parseHTML(html) {
+  return new DOMParser().parseFromString(html, "text/html");
+}
+
+const AI_BOTS = [
+  "GPTBot","ChatGPT-User","ClaudeBot","Claude-Web",
+  "Amazonbot","anthropic-ai","Google-Extended","PerplexityBot","Bytespider","cohere-ai"
+];
+
+function result(name, score, status, findings, actions) {
+  return { name, score, max_score: 10, status, findings: findings || [], actions: actions || [] };
+}
+
+// ── Checks ───────────────────────────────────────────────────────
+
+function checkRobots(data) {
+  const r = data.robots;
+  if (!r.ok || !r.text.trim()) {
+    return result("robots.txt", 0, "fail",
+      ["No robots.txt found at site root."],
+      ["Create a /robots.txt file that explicitly allows AI crawlers."]);
+  }
+  const text = r.text.toLowerCase();
+  const blocked = [];
+  let blanketBlock = false;
+
+  if (text.includes("user-agent: *")) {
+    const section = text.split("user-agent: *")[1].split("user-agent:")[0] || "";
+    if (section.split("\n").some(l => l.trim() === "disallow: /")) blanketBlock = true;
+  }
+
+  for (const bot of AI_BOTS) {
+    const pattern = new RegExp("user-agent:\\s*" + bot.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"), "i");
+    if (pattern.test(text)) {
+      const idx = text.search(pattern);
+      const section = text.substring(idx).split(/user-agent:/i).slice(0,1).join("");
+      if (section.includes("disallow: /")) blocked.push(bot);
+    }
+  }
+
+  const findings = ["robots.txt exists."];
+  const actions = [];
+  let score = blanketBlock ? 3 : 6;
+
+  if (blanketBlock) {
+    findings.push("⚠ Blanket 'Disallow: /' found for all user-agents.");
+    actions.push("Consider allowing AI crawlers by adding specific Allow rules.");
+  }
+  if (blocked.length) {
+    findings.push("Blocked AI bots: " + blocked.join(", "));
+    actions.push("Consider unblocking: " + blocked.join(", "));
+    score = Math.max(score - blocked.length, 2);
+  } else if (!blanketBlock) {
+    findings.push("No AI bots are explicitly blocked.");
+    score = 10;
+  }
+
+  const status = score >= 8 ? "pass" : score >= 4 ? "partial" : "fail";
+  return result("robots.txt", score, status, findings, actions);
+}
+
+function checkLlmsTxt(data) {
+  const r = data.llms_txt;
+  if (!r.ok || !r.text.trim()) {
+    return result("llms.txt", 0, "fail",
+      ["No /llms.txt file found."],
+      ["Create a /llms.txt file describing your site for LLM consumption.", "See https://llmstxt.org for the specification."]);
+  }
+  const lines = r.text.trim().split("\n").filter(l => l.trim());
+  const findings = [`llms.txt found with ${lines.length} lines.`];
+  const actions = [];
+  let score = lines.length < 3 ? 4 : 10;
+  if (lines.length < 3) {
+    findings.push("File is very short — may lack useful content.");
+    actions.push("Add more detail: site description, key URLs, API docs links.");
+  }
+  return result("llms.txt", score, score >= 8 ? "pass" : "partial", findings, actions);
+}
+
+function checkSitemap(data) {
+  const r = data.sitemap;
+  if (!r.ok || !r.text.trim()) {
+    return result("Sitemap", 0, "fail",
+      ["No /sitemap.xml found."],
+      ["Create a sitemap.xml listing your key pages so AI agents can discover content."]);
+  }
+  const urlCount = (r.text.match(/<url>/gi) || []).length || (r.text.match(/<loc>/gi) || []).length;
+  const findings = [urlCount ? `sitemap.xml found with ~${urlCount} URLs.` : "sitemap.xml found (index or non-standard format)."];
+  const actions = [];
+  let score = urlCount >= 5 ? 10 : urlCount > 0 ? 7 : 5;
+  if (!urlCount) actions.push("Ensure sitemap contains <url><loc>...</loc></url> entries.");
+  if (urlCount > 0 && urlCount < 5) actions.push("Consider adding more pages to the sitemap.");
+  return result("Sitemap", score, score >= 8 ? "pass" : "partial", findings, actions);
+}
+
+function checkStructuredData(data) {
+  const html = data.page.text || "";
+  const doc = parseHTML(html);
+  const jsonLd = doc.querySelectorAll('script[type="application/ld+json"]');
+  const microdata = doc.querySelectorAll("[itemscope]");
+
+  const findings = [];
+  const actions = [];
+  let score = 0;
+
+  if (jsonLd.length) {
+    const types = [];
+    jsonLd.forEach(s => {
+      try {
+        const obj = JSON.parse(s.textContent);
+        if (Array.isArray(obj)) obj.forEach(o => types.push(o["@type"] || "Unknown"));
+        else types.push(obj["@type"] || "Unknown");
+      } catch {}
+    });
+    findings.push(`Found ${jsonLd.length} JSON-LD block(s): ${types.join(", ") || "unparseable"}.`);
+    score += 7;
+  }
+  if (microdata.length) {
+    findings.push(`Found ${microdata.length} microdata element(s).`);
+    score += 3;
+  }
+  if (!jsonLd.length && !microdata.length) {
+    findings.push("No structured data (JSON-LD or microdata) found.");
+    actions.push("Add JSON-LD structured data (schema.org) — Organization, WebPage, Article, FAQPage, etc.");
+    actions.push("This helps LLMs understand your content type and extract key facts.");
+  }
+  score = Math.min(score, 10);
+  const status = score >= 7 ? "pass" : score >= 3 ? "partial" : "fail";
+  return result("Structured Data", score, status, findings, actions);
+}
+
+function checkSemanticHTML(data) {
+  const doc = parseHTML(data.page.text || "");
+  const tags = ["main","nav","article","section","header","footer","aside"];
+  const found = {};
+  const missing = [];
+  for (const t of tags) {
+    const count = doc.querySelectorAll(t).length;
+    if (count) found[t] = count; else missing.push(t);
+  }
+
+  const findings = [];
+  const actions = [];
+  if (Object.keys(found).length)
+    findings.push("Semantic tags found: " + Object.entries(found).map(([k,v]) => `<${k}> (${v})`).join(", ") + ".");
+  if (missing.length)
+    findings.push("Missing semantic tags: " + missing.map(t => `<${t}>`).join(", ") + ".");
+
+  const score = Math.min(Math.round(Object.keys(found).length / tags.length * 10), 10);
+  if (!("main" in found)) actions.push("Add a <main> element to wrap your primary content — critical for LLM content extraction.");
+  if (!("nav" in found)) actions.push("Add <nav> for navigation — helps agents understand site structure.");
+  if (!("article" in found) && !("section" in found)) actions.push("Use <article> or <section> to delineate content blocks.");
+
+  const status = score >= 7 ? "pass" : score >= 4 ? "partial" : "fail";
+  return result("Semantic HTML", score, status, findings, actions);
+}
+
+function checkMetaDescription(data) {
+  const doc = parseHTML(data.page.text || "");
+  const findings = [];
+  const actions = [];
+  let score = 0;
+
+  const title = doc.querySelector("title");
+  if (title && title.textContent.trim()) {
+    findings.push(`Title tag: "${title.textContent.trim().slice(0, 80)}"`);
+    score += 4;
+  } else {
+    findings.push("No <title> tag found.");
+    actions.push("Add a descriptive <title> tag.");
+  }
+
+  const meta = doc.querySelector('meta[name="description"]');
+  if (meta && meta.getAttribute("content")?.trim()) {
+    const content = meta.getAttribute("content").trim();
+    findings.push(`Meta description (${content.length} chars): "${content.slice(0, 100)}${content.length > 100 ? "…" : ""}"`);
+    if (content.length < 50) { actions.push("Meta description is too short. Aim for 120-160 characters."); score += 3; }
+    else if (content.length > 300) { actions.push("Meta description is too long. Keep it under 160 characters."); score += 4; }
+    else score += 6;
+  } else {
+    findings.push("No meta description found.");
+    actions.push("Add <meta name='description' content='...'> with a concise page summary (120-160 chars).");
+  }
+
+  const status = score >= 8 ? "pass" : score >= 4 ? "partial" : "fail";
+  return result("Meta Description", score, status, findings, actions);
+}
+
+function checkOpenGraph(data) {
+  const doc = parseHTML(data.page.text || "");
+  const ogTags = {};
+  doc.querySelectorAll('meta[property^="og:"]').forEach(m => {
+    ogTags[m.getAttribute("property")] = m.getAttribute("content") || "";
+  });
+
+  const findings = [];
+  const actions = [];
+  const required = ["og:title","og:description","og:type","og:url"];
+  const present = required.filter(t => t in ogTags);
+  const missing = required.filter(t => !(t in ogTags));
+
+  for (const tag of present) findings.push(`${tag}: "${ogTags[tag].slice(0, 80)}"`);
+  const score = Math.round(present.length / required.length * 10);
+
+  if (missing.length) {
+    findings.push("Missing OG tags: " + missing.join(", "));
+    actions.push("Add the following Open Graph tags: " + missing.join(", "));
+    actions.push("OG tags help LLMs and agents understand page purpose when shared or indexed.");
+  }
+  if (ogTags["og:image"]) findings.push(`og:image present: ${ogTags["og:image"].slice(0, 80)}`);
+
+  const status = score >= 8 ? "pass" : score >= 5 ? "partial" : "fail";
+  return result("Open Graph", score, status, findings, actions);
+}
+
+function checkContentClarity(data) {
+  const html = data.page.text || "";
+  const doc = parseHTML(html);
+  doc.querySelectorAll("script, style, noscript").forEach(el => el.remove());
+
+  const text = doc.body?.textContent?.replace(/\s+/g, " ").trim() || "";
+  const textLen = text.length;
+  const htmlLen = html.length || 1;
+  const ratio = textLen / htmlLen;
+
+  const findings = [
+    `Text content: ${textLen.toLocaleString()} chars, HTML size: ${htmlLen.toLocaleString()} chars.`,
+    `Text-to-HTML ratio: ${(ratio * 100).toFixed(1)}%`,
+  ];
+  const actions = [];
+
+  const paragraphs = [...doc.querySelectorAll("p")].filter(p => p.textContent.trim().length > 40);
+  findings.push(`Substantial paragraphs (>40 chars): ${paragraphs.length}`);
+
+  let score;
+  if (ratio >= 0.25) score = 8;
+  else if (ratio >= 0.15) score = 6;
+  else if (ratio >= 0.08) score = 4;
+  else { score = 2; actions.push("Very low text-to-HTML ratio — content may be JS-rendered or hidden in iframes."); }
+
+  if (paragraphs.length >= 3) score = Math.min(score + 2, 10);
+  else if (paragraphs.length === 0) actions.push("No substantial <p> elements found. Structure content in paragraphs for better LLM parsing.");
+
+  if (textLen < 200) { actions.push("Page has very little text content. LLMs need readable text to understand your site."); score = Math.max(score - 3, 0); }
+
+  const status = score >= 7 ? "pass" : score >= 4 ? "partial" : "fail";
+  return result("Content Clarity", score, status, findings, actions);
+}
+
+function checkHeadings(data) {
+  const doc = parseHTML(data.page.text || "");
+  const headings = {};
+  for (let i = 1; i <= 6; i++) {
+    const tag = "h" + i;
+    headings[tag] = [...doc.querySelectorAll(tag)].map(h => h.textContent.trim().slice(0, 80));
+  }
+
+  const findings = [];
+  const actions = [];
+  let score = 0;
+  const h1s = headings.h1 || [];
+
+  if (h1s.length === 1) { findings.push(`Single H1: "${h1s[0]}"`); score += 5; }
+  else if (h1s.length === 0) { findings.push("No H1 tag found."); actions.push("Add a single <h1> that clearly describes the page content."); }
+  else { findings.push(`Multiple H1 tags found (${h1s.length}): ${h1s.slice(0,3).join(", ")}`); actions.push("Use only one <h1> per page."); score += 2; }
+
+  const total = Object.values(headings).reduce((s, a) => s + a.length, 0);
+  if (total > 1) {
+    const breakdown = Object.entries(headings).filter(([,v]) => v.length).map(([k,v]) => `${k}: ${v.length}`).join(", ");
+    findings.push("Heading breakdown: " + breakdown);
+    score += 3;
+    const used = Object.entries(headings).filter(([,v]) => v.length).map(([k]) => parseInt(k[1]));
+    let skipped = false;
+    for (let i = 0; i < used.length - 1; i++) {
+      if (used[i+1] - used[i] > 1) {
+        actions.push(`Heading levels skip from H${used[i]} to H${used[i+1]}. Use sequential levels.`);
+        skipped = true; break;
+      }
+    }
+    if (!skipped) score += 2;
+  } else {
+    findings.push("Very few headings found on the page.");
+    actions.push("Add heading hierarchy (H1 → H2 → H3) to structure content for AI parsing.");
+  }
+
+  score = Math.min(score, 10);
+  const status = score >= 7 ? "pass" : score >= 4 ? "partial" : "fail";
+  return result("Heading Structure", score, status, findings, actions);
+}
+
+function checkCanonicalLang(data) {
+  const doc = parseHTML(data.page.text || "");
+  const findings = [];
+  const actions = [];
+  let score = 0;
+
+  const canonical = doc.querySelector('link[rel="canonical"]');
+  if (canonical && canonical.getAttribute("href")) {
+    findings.push(`Canonical URL: ${canonical.getAttribute("href").slice(0, 100)}`);
+    score += 5;
+  } else {
+    findings.push("No canonical URL set.");
+    actions.push("Add <link rel='canonical' href='...'> to avoid duplicate content issues with LLM indexing.");
+  }
+
+  const htmlTag = doc.querySelector("html");
+  if (htmlTag && htmlTag.getAttribute("lang")) {
+    findings.push(`Language attribute: ${htmlTag.getAttribute("lang")}`);
+    score += 5;
+  } else {
+    findings.push("No lang attribute on <html> tag.");
+    actions.push("Add lang='en' (or appropriate language) to the <html> tag.");
+  }
+
+  const status = score >= 8 ? "pass" : score >= 5 ? "partial" : "fail";
+  return result("Canonical & Language", score, status, findings, actions);
+}
+
+// ── Scorer ───────────────────────────────────────────────────────
+const ALL_CHECKS = [
+  checkRobots, checkLlmsTxt, checkSitemap, checkStructuredData,
+  checkSemanticHTML, checkMetaDescription, checkOpenGraph,
+  checkContentClarity, checkHeadings, checkCanonicalLang,
+];
+
+function grade(score) {
+  if (score >= 90) return { letter: "A", label: "Excellent", color: "#22c55e" };
+  if (score >= 75) return { letter: "B", label: "Good", color: "#84cc16" };
+  if (score >= 60) return { letter: "C", label: "Fair", color: "#eab308" };
+  if (score >= 40) return { letter: "D", label: "Poor", color: "#f97316" };
+  return { letter: "F", label: "Not Ready", color: "#ef4444" };
+}
+
+async function analyze(url) {
+  const data = await fetchAll(url);
+  const checks = ALL_CHECKS.map(fn => fn(data));
+  const totalScore = checks.reduce((s, c) => s + c.score, 0);
+  return { url, score: totalScore, max_score: 100, grade: grade(totalScore), checks };
+}
+
+// ── UI ───────────────────────────────────────────────────────────
+const form = document.getElementById("analyze-form");
+const urlInput = document.getElementById("url-input");
+const submitBtn = document.getElementById("submit-btn");
+const htmlInput = document.getElementById("html-input");
+const pasteUrl = document.getElementById("paste-url");
+const loadingEl = document.getElementById("loading");
+const errorEl = document.getElementById("error");
+const reportEl = document.getElementById("report");
+const scoreCircle = document.getElementById("score-circle");
+const scoreNumber = document.getElementById("score-number");
+const gradeBadge = document.getElementById("grade-badge");
+const analyzedUrl = document.getElementById("analyzed-url");
+const checksList = document.getElementById("checks-list");
+const proxyNote = document.getElementById("proxy-note");
+
+let currentMode = "url";
+
+// Mode tab switching
+document.querySelectorAll(".mode-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".mode-tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    currentMode = tab.dataset.mode;
+    document.getElementById("url-mode").classList.toggle("hidden", currentMode !== "url");
+    document.getElementById("paste-mode").classList.toggle("hidden", currentMode !== "paste");
+    proxyNote.classList.toggle("hidden", currentMode !== "url");
+  });
+});
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  reportEl.classList.add("hidden");
+  errorEl.classList.add("hidden");
+  loadingEl.classList.remove("hidden");
+
+  try {
+    let report;
+    if (currentMode === "url") {
+      const url = urlInput.value.trim();
+      if (!url) throw new Error("Please enter a URL");
+      report = await analyze(url);
+    } else {
+      const html = htmlInput.value.trim();
+      if (!html) throw new Error("Please paste HTML source");
+      report = analyzePasted(html, pasteUrl.value.trim());
+    }
+    renderReport(report);
+  } catch (err) {
+    errorEl.textContent = "Error: " + err.message;
+    errorEl.classList.remove("hidden");
+  } finally {
+    loadingEl.classList.add("hidden");
+  }
+});
+
+function analyzePasted(html, url) {
+  const data = {
+    url: url || "(pasted HTML)",
+    page: { ok: true, text: html },
+    robots: { ok: false, text: "" },
+    sitemap: { ok: false, text: "" },
+    llms_txt: { ok: false, text: "" },
+  };
+  const checks = ALL_CHECKS.map(fn => fn(data));
+  for (const c of checks) {
+    if (["robots.txt", "llms.txt", "Sitemap"].includes(c.name) && c.score === 0) {
+      c.findings = ["Cannot check in paste mode — requires fetching from server."];
+      c.actions = ["Use URL mode to check this, or verify manually."];
+      c.status = "partial";
+      c.score = -1;
+    }
+  }
+  const scoredChecks = checks.filter(c => c.score >= 0);
+  const skippedChecks = checks.filter(c => c.score < 0);
+  skippedChecks.forEach(c => { c.score = 0; c.max_score = 0; });
+
+  const totalScore = scoredChecks.reduce((s, c) => s + c.score, 0);
+  const maxScore = scoredChecks.length * 10;
+  const normalized = Math.round((totalScore / maxScore) * 100);
+
+  return {
+    url: url || "(pasted HTML)",
+    score: normalized,
+    max_score: 100,
+    grade: grade(normalized),
+    checks,
+  };
+}
+
+function renderReport(report) {
+  scoreNumber.textContent = report.score;
+  scoreCircle.style.borderColor = report.grade.color;
+  scoreNumber.style.color = report.grade.color;
+  gradeBadge.textContent = report.grade.letter + " — " + report.grade.label;
+  gradeBadge.style.background = report.grade.color;
+  analyzedUrl.textContent = report.url;
+  checksList.innerHTML = "";
+  for (const check of report.checks) checksList.appendChild(createCheckCard(check));
+  reportEl.classList.remove("hidden");
+}
+
+function createCheckCard(check) {
+  const card = document.createElement("div");
+  card.className = "check-card";
+
+  const header = document.createElement("div");
+  header.className = "check-header";
+  header.innerHTML = `
+    <span class="check-status-dot ${check.status}"></span>
+    <span class="check-name">${esc(check.name)}</span>
+    <span class="check-score">${check.score}/${check.max_score}</span>
+    <span class="check-chevron">▶</span>`;
+  header.addEventListener("click", () => card.classList.toggle("open"));
+
+  const body = document.createElement("div");
+  body.className = "check-body";
+
+  if (check.findings.length) {
+    body.innerHTML += "<h4>Findings</h4>";
+    const ul = document.createElement("ul"); ul.className = "findings-list";
+    for (const f of check.findings) { const li = document.createElement("li"); li.textContent = f; ul.appendChild(li); }
+    body.appendChild(ul);
+  }
+  if (check.actions.length) {
+    body.innerHTML += "<h4>Recommended Actions</h4>";
+    const ul = document.createElement("ul"); ul.className = "actions-list";
+    for (const a of check.actions) { const li = document.createElement("li"); li.textContent = a; ul.appendChild(li); }
+    body.appendChild(ul);
+  }
+  if (!check.findings.length && !check.actions.length)
+    body.innerHTML += '<p style="color:var(--text-muted)">No issues found.</p>';
+
+  card.appendChild(header);
+  card.appendChild(body);
+  return card;
+}
+
+function esc(str) { const d = document.createElement("div"); d.textContent = str; return d.innerHTML; }
+</script>
+</body>
+</html>
