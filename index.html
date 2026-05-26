@@ -178,7 +178,7 @@ footer {
         <p class="paste-hint">Tip: This mode needs no proxy — analysis runs entirely in your browser.</p>
       </div>
     </form>
-    <p class="proxy-note" id="proxy-note">URL mode uses a public CORS proxy (corsproxy.io with fallback). For full control, use Paste HTML mode.</p>
+    <p class="proxy-note" id="proxy-note">URL mode uses public CORS proxies (with fallbacks). For full control, use Paste HTML mode.</p>
   </section>
   <section id="loading" class="loading hidden">
     <div class="spinner"></div>
@@ -206,6 +206,7 @@ footer {
 <script>
 // ── CORS Proxy ───────────────────────────────────────────────────
 const PROXIES = [
+  (url) => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url),
   (url) => "https://corsproxy.io/?" + encodeURIComponent(url),
   (url) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(url),
 ];
