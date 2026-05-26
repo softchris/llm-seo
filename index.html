@@ -178,7 +178,7 @@ footer {
         <p class="paste-hint">Tip: This mode needs no proxy — analysis runs entirely in your browser.</p>
       </div>
     </form>
-    <p class="proxy-note" id="proxy-note">URL mode uses a public CORS proxy (<a href="https://allorigins.win" target="_blank">allorigins.win</a>). For full control, use Paste HTML mode or <a href="https://github.com" target="_blank">deploy your own proxy</a>.</p>
+    <p class="proxy-note" id="proxy-note">URL mode uses a public CORS proxy (corsproxy.io with fallback). For full control, use Paste HTML mode.</p>
   </section>
   <section id="loading" class="loading hidden">
     <div class="spinner"></div>
@@ -205,12 +205,20 @@ footer {
 
 <script>
 // ── CORS Proxy ───────────────────────────────────────────────────
-const PROXY = "https://api.allorigins.win/raw?url=";
+const PROXIES = [
+  (url) => "https://corsproxy.io/?" + encodeURIComponent(url),
+  (url) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(url),
+];
 
 async function proxyFetch(url) {
-  const res = await fetch(PROXY + encodeURIComponent(url));
-  if (!res.ok) return { ok: false, text: "" };
-  return { ok: true, text: await res.text() };
+  for (const makeUrl of PROXIES) {
+    try {
+      const res = await fetch(makeUrl(url));
+      if (!res.ok) continue;
+      return { ok: true, text: await res.text() };
+    } catch {}
+  }
+  return { ok: false, text: "" };
 }
 
 // ── Fetcher ──────────────────────────────────────────────────────

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM SEO Analyzer</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>🔍 LLM SEO Analyzer</h1>
+    <p class="subtitle">Check if your website is ready for AI agents &amp; LLMs</p>
+  </header>
+
+  <main>
+    <section class="input-section">
+      <form id="analyze-form">
+        <div class="input-row">
+          <input
+            type="text"
+            id="url-input"
+            placeholder="Enter a URL — e.g. https://example.com"
+            autocomplete="url"
+            required
+          />
+          <button type="submit" id="submit-btn">Analyze</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="loading" class="loading hidden">
+      <div class="spinner"></div>
+      <p>Fetching and analyzing…</p>
+    </section>
+
+    <section id="error" class="error-box hidden"></section>
+
+    <section id="report" class="hidden">
+      <div class="score-card">
+        <div class="score-circle" id="score-circle">
+          <span class="score-number" id="score-number">0</span>
+          <span class="score-max">/100</span>
+        </div>
+        <div class="score-info">
+          <span class="grade-badge" id="grade-badge">—</span>
+          <p class="analyzed-url" id="analyzed-url"></p>
+        </div>
+      </div>
+
+      <div class="checks-list" id="checks-list"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>LLM SEO Analyzer — evaluate your site's AI readiness</p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
