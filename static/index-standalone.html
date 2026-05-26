@@ -218,17 +218,21 @@ async function proxyFetch(url) {
 }
 
 // ── Fetcher ──────────────────────────────────────────────────────
+const delay = (ms) => new Promise(r => setTimeout(r, ms));
+
 async function fetchAll(url) {
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;
   const parsed = new URL(url);
   const base = parsed.origin;
 
-  const [page, robots, sitemap, llmsTxt] = await Promise.all([
-    proxyFetch(url),
-    proxyFetch(base + "/robots.txt"),
-    proxyFetch(base + "/sitemap.xml"),
-    proxyFetch(base + "/llms.txt"),
-  ]);
+  // Stagger requests to avoid rate limits (codetabs allows ~5 req/s)
+  const page = await proxyFetch(url);
+  await delay(300);
+  const robots = await proxyFetch(base + "/robots.txt");
+  await delay(300);
+  const sitemap = await proxyFetch(base + "/sitemap.xml");
+  await delay(300);
+  const llmsTxt = await proxyFetch(base + "/llms.txt");
 
   return { url, page, robots, sitemap, llms_txt: llmsTxt };
 }
